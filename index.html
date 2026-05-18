@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Radio Allocation Kiosk</title>
+
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 16px;
+      background: #f5f5f5;
+    }
+
+    .box {
+      max-width: 620px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    }
+
+    h1 {
+      margin-top: 0;
+    }
+
+    #reader {
+      width: 100%;
+      max-width: 500px;
+      margin: 20px auto;
+    }
+
+    input {
+      padding: 10px;
+      font-size: 16px;
+      width: 90%;
+      max-width: 420px;
+      margin: 8px 0;
+    }
+
+    button {
+      margin: 8px;
+      padding: 12px 18px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .selected {
+      background: #1a73e8;
+      color: white;
+    }
+
+    #status {
+      margin-top: 14px;
+      font-weight: bold;
+      white-space: pre-wrap;
+    }
+
+    .ok {
+      color: green;
+    }
+
+    .error {
+      color: red;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="box">
+    <h1>Radio Allocation Kiosk</h1>
+
+    <div>
+      <button id="outBtn" class="selected" onclick="setMode('OUT')">Book OUT</button>
+      <button id="inBtn" onclick="setMode('IN')">Book IN</button>
+    </div>
+
+    <p>Current mode: <strong id="modeLabel">OUT</strong></p>
+
+    <div id="reader"></div>
+
+    <input id="manualBarcode" placeholder="Scan or enter barcode manually">
+    <br>
+    <input id="assignedBy" placeholder="Assigned by / returned by">
+
+    <div>
+      <button onclick="submitManual()">Submit Manual Entry</button>
+      <button onclick="restartScanner()">Restart Camera</button>
+    </div>
+
+    <div id="status"></div>
+  </div>
+
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbzAtHES-rHXf5AZ1ezvTWcOLySvgSeTiXMk00OGOQADfH7nD793KVffoTPzXPQmNw/exec";
+
+    let currentMode = "OUT";
+    let scanner = null;
+    let busy = false;
+
+    function setStatus(message, type) {
+      const status = document.getElementById("status");
+      status.textContent = message;
+      status.className = type || "";
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      document.getElementById("modeLabel").textContent = mode;
+
+      document.getElementById("outBtn").className = mode === "OUT" ? "selected" : "";
+      document.getElementById("inBtn").className = mode === "IN" ? "selected" : "";
+    }
+
+    function callAppsScript(action, barcode, assignedBy) {
+      return new Promise(function(resolve, reject) {
+        const callbackName = "callback_" + Date.now();
+
+        window[callbackName] = function(response) {
+          resolve(response);
+          delete window[callbackName];
+          script.remove();
+        };
+
+        const url =
+          API_URL +
+          "?action=" + encodeURIComponent(action) +
+          "&barcode=" + encodeURIComponent(barcode) +
+          "&assignedBy=" + encodeURIComponent(assignedBy || "") +
+          "&callback=" + callbackName;
+
+        const script = document.createElement("script");
+        script.src = url;
+        script.onerror = function() {
+          reject(new Error("Could not contact Apps Script."));
+          delete window[callbackName];
+          script.remove();
+        };
+
+        document.body.appendChild(script);
+      });
+    }
+
+    async function processBarcode(barcode) {
+      if (busy) return;
+
+      barcode = String(barcode || "").trim();
+
+      if (!barcode) {
+        setStatus("No barcode scanned.", "error");
+        return;
+      }
+
+      busy = true;
+      setStatus("Scanned: " + barcode + "\nUpdating sheet...", "");
+
+      const assignedBy = document.getElementById("assignedBy").value.trim();
+
+      try {
+        const result = await callAppsScript(currentMode, barcode, assignedBy);
+
+        if (result.status === "OK") {
+          setStatus(
+            "Booked " + currentMode + ": " + barcode + "\nRow: " + result.row,
+            "ok"
+          );
+
+          document.getElementById("manualBarcode").value = "";
+        } else {
+          setStatus(result.message || "Error booking barcode.", "error");
+        }
+      } catch (err) {
+        setStatus("Connection error: " + err.message, "error");
+      }
+
+      setTimeout(function() {
+        busy = false;
+      }, 1200);
+    }
+
+    function submitManual() {
+      const barcode = document.getElementById("manualBarcode").value.trim();
+      processBarcode(barcode);
+    }
+
+    function onScanSuccess(decodedText) {
+      processBarcode(decodedText);
+    }
+
+    function onScanFailure(error) {
+      // Ignore repeated scan errors.
+    }
+
+    function startScanner() {
+      setStatus("Starting camera...", "");
+
+      scanner = new Html5QrcodeScanner(
+        "reader",
+        {
+          fps: 10,
+          qrbox: {
+            width: 250,
+            height: 250
+          }
+        },
+        false
+      );
+
+      scanner.render(onScanSuccess, onScanFailure);
+    }
+
+    function restartScanner() {
+      if (scanner) {
+        scanner.clear()
+          .then(function() {
+            startScanner();
+          })
+          .catch(function() {
+            startScanner();
+          });
+      } else {
+        startScanner();
+      }
+    }
+
+    setMode("OUT");
+    startScanner();
+  </script>
+</body>
+</html>
