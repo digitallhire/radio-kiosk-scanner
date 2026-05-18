@@ -97,7 +97,14 @@
   </div>
 
   <script>
+    /***********************************************************
+     * IMPORTANT:
+     * Replace this with your Apps Script Web App URL ending /exec
+     ***********************************************************/
     const API_URL = "https://script.google.com/macros/s/AKfycbyHqHC5_7ZRJbkP4TAWTvFS12Gx73OzMf14PCtKxCm95vHJ7DH4cXMGerLuB8Lzng/exec";
+
+    const pageParams = new URLSearchParams(window.location.search);
+    const SHEET_ID = pageParams.get("sheetId");
 
     let currentMode = "OUT";
     let scanner = null;
@@ -119,6 +126,11 @@
 
     function callAppsScript(action, barcode, assignedBy) {
       return new Promise(function(resolve, reject) {
+        if (!SHEET_ID) {
+          reject(new Error("Missing sheetId in URL. Open scanner from the Google Sheet menu."));
+          return;
+        }
+
         const callbackName = "callback_" + Date.now();
 
         window[callbackName] = function(response) {
@@ -132,6 +144,7 @@
           "?action=" + encodeURIComponent(action) +
           "&barcode=" + encodeURIComponent(barcode) +
           "&assignedBy=" + encodeURIComponent(assignedBy || "") +
+          "&sheetId=" + encodeURIComponent(SHEET_ID) +
           "&callback=" + callbackName;
 
         const script = document.createElement("script");
@@ -231,6 +244,14 @@
     }
 
     setMode("OUT");
+
+    if (!SHEET_ID) {
+      setStatus(
+        "Missing sheetId.\n\nOpen this scanner from the Google Sheet menu:\nRadio Kiosk → Open scanner",
+        "error"
+      );
+    }
+
     startScanner();
   </script>
 </body>
