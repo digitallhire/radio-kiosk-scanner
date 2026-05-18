@@ -97,7 +97,7 @@
   </div>
 
   <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbzAtHES-rHXf5AZ1ezvTWcOLySvgSeTiXMk00OGOQADfH7nD793KVffoTPzXPQmNw/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbzWK2WYQSOau-ezOgn9etaYWNoJto_ygTX9UsiLS4Mc4gMzY16BHanuHQPE7l74pg/exec";
 
     let currentMode = "OUT";
     let scanner = null;
@@ -111,8 +111,8 @@
 
     function setMode(mode) {
       currentMode = mode;
-      document.getElementById("modeLabel").textContent = mode;
 
+      document.getElementById("modeLabel").textContent = mode;
       document.getElementById("outBtn").className = mode === "OUT" ? "selected" : "";
       document.getElementById("inBtn").className = mode === "IN" ? "selected" : "";
     }
@@ -136,6 +136,7 @@
 
         const script = document.createElement("script");
         script.src = url;
+
         script.onerror = function() {
           reject(new Error("Could not contact Apps Script."));
           delete window[callbackName];
@@ -157,6 +158,7 @@
       }
 
       busy = true;
+
       setStatus("Scanned: " + barcode + "\nUpdating sheet...", "");
 
       const assignedBy = document.getElementById("assignedBy").value.trim();
